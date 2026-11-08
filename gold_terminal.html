@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>GOLD BOT Terminal</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'JetBrains Mono',monospace;background:#0a0a0f;color:#e0e0e0;overflow:hidden;height:100vh;font-size:11px}
+.terminal{display:grid;grid-template-rows:32px 1fr 180px;height:100vh}
+.top-bar{display:flex;align-items:center;justify-content:space-between;background:#12121a;border-bottom:1px solid #1a1a2e;padding:0 12px;font-size:10px}
+.top-bar .logo{color:#ffd700;font-weight:700;font-size:11px;letter-spacing:2px}
+.top-bar .logo span{color:#888;font-weight:400}
+.top-bar .metrics{display:flex;gap:24px;color:#888}
+.top-bar .metrics .val{color:#e0e0e0;font-weight:600}
+.top-bar .metrics .val.green{color:#00ff88}
+.top-bar .clock{color:#ffd700;font-weight:600;font-size:12px}
+.status-dot{width:6px;height:6px;background:#00ff88;border-radius:50%;display:inline-block;margin-right:6px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.main-area{display:grid;grid-template-columns:220px 1fr 260px;overflow:hidden}
+.left-panel,.right-panel{overflow-y:auto;padding:8px;background:#0d0d15}
+.left-panel{border-right:1px solid #1a1a2e}
+.right-panel{border-left:1px solid #1a1a2e}
+.panel-title{font-size:9px;color:#555;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid #1a1a2e}
+.underlying-section{margin-bottom:12px}
+.underlying-label{font-size:10px;color:#ffd700;font-weight:600;margin-bottom:4px}
+.data-row{display:flex;justify-content:space-between;padding:1px 0;font-size:10px}
+.data-row .label{color:#888}
+.data-row .value{color:#e0e0e0;font-weight:500}
+.data-row .value.up{color:#00ff88}
+.data-row .value.down{color:#ff2d55}
+.data-row .value.neutral{color:#ffd700}
+.momentum-bar{height:3px;background:#1a1a2e;margin:2px 0 6px;border-radius:2px;overflow:hidden}
+.momentum-bar .fill{height:100%;border-radius:2px}
+.momentum-bar .fill.up{background:#00ff88}
+.momentum-bar .fill.down{background:#ff2d55}
+.section-divider{height:1px;background:#1a1a2e;margin:8px 0}
+.center-viz{position:relative;background:#0a0a0f;overflow:hidden}
+#networkCanvas{width:100%;height:100%;display:block}
+.viz-overlay{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none}
+.viz-label{position:absolute;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;white-space:nowrap}
+.viz-label.xau{color:#ffd700;font-size:13px}
+.viz-label .sub{font-size:8px;font-weight:400;color:#555;display:block}
+.grid-line-h,.grid-line-v{position:absolute;background:#1a1a2e;opacity:.3}
+.grid-line-h{width:100%;height:1px}
+.grid-line-v{width:1px;height:100%}
+.dashed-circle{position:absolute;border:1px dashed #1a1a2e;border-radius:50%;opacity:.4}
+.quote-block{margin-bottom:10px;padding:6px;border:1px solid #1a1a2e;border-radius:3px}
+.quote-block .asset-name{font-size:11px;font-weight:700;margin-bottom:4px}
+.quote-block .asset-name.gold{color:#ffd700}
+.quote-block .status{font-size:9px;color:#00ff88;margin-bottom:4px}
+.quote-row{display:flex;justify-content:space-between;font-size:9px;padding:1px 0}
+.quote-row .ql{color:#555}
+.quote-row .qv{color:#e0e0e0}
+.quote-row .qv.up{color:#00ff88}
+.quote-row .qv.down{color:#ff2d55}
+.bottom-panel{display:grid;grid-template-columns:200px 280px 180px 200px 180px 220px;border-top:1px solid #1a1a2e;background:#0d0d15;overflow:hidden}
+.bottom-section{padding:8px;border-right:1px solid #1a1a2e;overflow-y:auto}
+.bottom-section:last-child{border-right:none}
+.pnl-display{font-size:28px;font-weight:700;color:#00ff88;margin:8px 0}
+.pnl-display .currency{font-size:16px}
+.pnl-chart{height:40px;background:#12121a;border-radius:3px;margin-top:4px;position:relative;overflow:hidden}
+.decision-log{font-size:9px;line-height:1.6}
+.decision-log .entry{padding:1px 0;border-bottom:1px solid #1a1a2e30}
+.decision-log .time{color:#555}
+.decision-log .action{font-weight:600}
+.decision-log .action.buy{color:#00ff88}
+.decision-log .action.sell{color:#ff2d55}
+.decision-log .action.hold{color:#ffd700}
+.decision-log .action.switch{color:#00e5ff}
+.decision-log .detail{color:#888}
+.fill-stats{font-size:9px}
+.fill-stats .big-number{font-size:20px;font-weight:700;color:#e0e0e0}
+.fill-stats .big-number .unit{font-size:10px;color:#555}
+.inventory-viz{position:relative;height:80px;margin:8px 0}
+.book-assets{display:flex;flex-direction:column;align-items:center;gap:4px}
+.book-node{width:40px;height:40px;border-radius:50%;border:2px solid #1a1a2e;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600}
+.book-node.active{border-color:#00ff88;color:#00ff88}
+.book-node.warning{border-color:#ffd700;color:#ffd700}
+.book-node.danger{border-color:#ff2d55;color:#ff2d55}
+.waterfall-bars{display:flex;align-items:flex-end;gap:2px;height:50px;margin:8px 0}
+.waterfall-bar{flex:1;border-radius:1px 1px 0 0;min-height:2px}
+.waterfall-bar.positive{background:#00ff88}
+.waterfall-bar.negative{background:#ff2d55}
+.net-pnl{font-size:18px;font-weight:700;color:#00ff88;margin-top:4px}
+.net-pnl .label{font-size:9px;color:#555;display:block}
+.heatmap{display:grid;grid-template-columns:repeat(12,1fr);gap:1px;margin:4px 0}
+.heatmap-cell{height:8px;border-radius:1px}
+.sparkline{display:flex;align-items:flex-end;gap:1px;height:20px;margin:4px 0}
+.sparkline .bar{width:3px;border-radius:1px}
+.model-indicator{display:flex;align-items:center;gap:6px;margin:4px 0;font-size:9px}
+.model-dot{width:6px;height:6px;border-radius:50%}
+.model-dot.green{background:#00ff88}
+.model-dot.yellow{background:#ffd700}
+.model-dot.blue{background:#4488ff}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.fade-in{animation:fadeIn .5s ease}
+</style>
+</head>
+<body>
+<div class="terminal">
+  <div class="top-bar">
+    <div class="logo"><span class="status-dot"></span>◆ DIRECTIONAL + DYNAMIC HEDGE — 5M DF-DOWN VWAP UP+SN $2,648.30 <span>// xau_trader</span></div>
+    <div class="metrics">
+      <span>BTC <span class="val">$97,357</span></span>
+      <span>FAIR PUMP <span class="val green">$0.002</span></span>
+      <span>GAP <span class="val">52.75</span></span>
+      <span>TRADE/MIN <span class="val">148</span></span>
+      <span>AVG HOLD <span class="val">2:19</span></span>
+    </div>
+    <div class="clock" id="clock">18:36:16 UTC</div>
+  </div>
+  <div class="main-area">
+    <div class="left-panel">
+      <div class="panel-title">Underlying + Model</div>
+      <div class="underlying-section">
+        <div class="underlying-label">◆ XAU/USD (GOLD)</div>
+        <div class="data-row"><span class="label">XAU spot</span><span class="value up" id="xauSpot">2,648.30</span></div>
+        <div class="data-row"><span class="label">XAU fair</span><span class="value" id="xauFair">2,647.85</span></div>
+        <div class="data-row"><span class="label">XAU momentum</span><span class="value up" id="xauMom">+3.42/s</span></div>
+        <div class="momentum-bar"><div class="fill up" style="width:72%"></div></div>
+        <div class="data-row"><span class="label">XAU accel</span><span class="value up">+0.18/s²</span></div>
+        <div class="data-row"><span class="label">XAU OFI</span><span class="value up">+0.42</span></div>
+        <div class="data-row"><span class="label">XAU model edge</span><span class="value up">+$3.45</span></div>
+      </div>
+      <div class="section-divider"></div>
+      <div class="underlying-section">
+        <div class="underlying-label">◆ XAG/USD (SILVER)</div>
+        <div class="data-row"><span class="label">XAG spot</span><span class="value up">31.42</span></div>
+        <div class="data-row"><span class="label">XAG momentum</span><span class="value up">+1.2/s</span></div>
+        <div class="momentum-bar"><div class="fill up" style="width:58%"></div></div>
+      </div>
+      <div class="section-divider"></div>
+      <div class="underlying-section">
+        <div class="underlying-label">◆ BTC/USD</div>
+        <div class="data-row"><span class="label">BTC spot</span><span class="value up">97,357</span></div>
+        <div class="data-row"><span class="label">BTC momentum</span><span class="value up">+8.29/s</span></div>
+        <div class="momentum-bar"><div class="fill up" style="width:65%"></div></div>
+      </div>
+      <div class="section-divider"></div>
+      <div class="underlying-section">
+        <div class="underlying-label">◆ DXY</div>
+        <div class="data-row"><span class="label">DXY spot</span><span class="value down">104.22</span></div>
+        <div class="data-row"><span class="label">DXY vs Gold</span><span class="value down">-0.72</span></div>
+        <div class="momentum-bar"><div class="fill down" style="width:38%"></div></div>
+      </div>
+      <div class="section-divider"></div>
+      <div class="underlying-section">
+        <div class="underlying-label">◆ Microstructure</div>
+        <div class="data-row"><span class="label">Win rate</span><span class="value up">61.8%</span></div>
+        <div class="data-row"><span class="label">Sharpe</span><span class="value up">2.41</span></div>
+        <div class="data-row"><span class="label">Max DD</span><span class="value down">-1.2%</span></div>
+      </div>
+    </div>
+    <div class="center-viz">
+      <canvas id="networkCanvas"></canvas>
+      <div class="viz-overlay">
+        <div class="grid-line-h" style="top:25%"></div><div class="grid-line-h" style="top:50%"></div><div class="grid-line-h" style="top:75%"></div>
+        <div class="grid-line-v" style="left:25%"></div><div class="grid-line-v" style="left:50%"></div><div class="grid-line-v" style="left:75%"></div>
+        <div class="dashed-circle" style="width:300px;height:300px;top:50%;left:50%;transform:translate(-50%,-50%)"></div>
+        <div class="dashed-circle" style="width:500px;height:500px;top:50%;left:50%;transform:translate(-50%,-50%)"></div>
+        <div class="viz-label xau" style="top:42%;left:45%">XAU 5M<span class="sub">1,485 fills — accumulating</span></div>
+        <div class="viz-label" style="top:30%;left:60%;color:#ff8c00">BTC 5M<span class="sub">momentum: 8.29/s</span></div>
+        <div class="viz-label" style="top:55%;left:55%;color:#00e5ff">ETH 5M<span class="sub">+1.7% fills</span></div>
+        <div class="viz-label" style="top:50%;left:62%;color:#ffd700">VWAP $2,642<span class="sub">bet below $1 — 62.5%</span></div>
+        <div class="viz-label" style="top:58%;left:48%;color:#00ff88">switch → ON +4¢</div>
+      </div>
+    </div>
+    <div class="right-panel">
+      <div class="panel-title">Polymarket Quotes</div>
+      <div class="quote-block">
+        <div class="asset-name gold">XAU 5M</div>
+        <div class="status">▲ 1,485 fills — accumulating</div>
+        <div class="quote-row"><span class="ql">UP .41 + .08 .53</span><span class="qv up">+2.8%</span></div>
+        <div class="quote-row"><span class="ql">5M quote</span><span class="qv up">+0.42</span></div>
+        <div class="quote-row"><span class="ql">5M quote lag</span><span class="qv">2.8s</span></div>
+        <div class="quote-row"><span class="ql">Bid pressure</span><span class="qv up">62%</span></div>
+        <div class="quote-row"><span class="ql">Ask pressure</span><span class="qv down">38%</span></div>
+      </div>
+      <div class="section-divider"></div>
+      <div class="panel-title">Correlation Matrix</div>
+      <div class="heatmap" id="corrHeatmap"></div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555;margin-top:2px"><span>XAU</span><span>XAG</span><span>BTC</span><span>ETH</span><span>DXY</span><span>US10Y</span></div>
+      <div class="section-divider"></div>
+      <div class="panel-title">Order Flow Imbalance</div>
+      <div class="sparkline" id="ofiSparkline"></div>
+      <div class="data-row"><span class="label">Current OFI</span><span class="value up" id="currentOFI">+0.42</span></div>
+      <div class="data-row"><span class="label">OFI z-score</span><span class="value up">+1.84</span></div>
+    </div>
+  </div>
+  <div class="bottom-panel">
+    <div class="bottom-section">
+      <div class="panel-title">Wallet — XAUPF_CFPS</div>
+      <div class="pnl-display"><span class="currency">+</span>$279,057</div>
+      <div class="pnl-chart"><canvas id="pnlChart"></canvas></div>
+    </div>
+    <div class="bottom-section">
+      <div class="panel-title">Decision Trace</div>
+      <div class="decision-log" id="decisionLog">
+        <div class="entry"><span class="time">09:54</span> <span class="action buy">switch</span> <span class="detail">XAU 5M UP + $3.45 edge</span></div>
+        <div class="entry"><span class="time">09:55</span> <span class="action buy">switch</span> <span class="detail">matched inventory + $1</span></div>
+        <div class="entry"><span class="time">09:55</span> <span class="action sell">switch</span> <span class="detail">edge moved to DN</span></div>
+        <div class="entry"><span class="time">09:56</span> <span class="action switch">split</span> <span class="detail">matched 128 → resid 48 UP</span></div>
+      </div>
+    </div>
+    <div class="bottom-section">
+      <div class="panel-title">Fill Arrival</div>
+      <div class="fill-stats">
+        <div class="big-number">7.4<span class="unit">/s</span></div>
+        <div style="font-size:9px;color:#555">peak 7.4</div>
+        <div class="section-divider"></div>
+        <div class="data-row"><span class="label">Buys</span><span class="value up">2,439</span></div>
+        <div class="data-row"><span class="label">Sells</span><span class="value down">2,186</span></div>
+        <div class="data-row"><span class="label">Avg hold</span><span class="value">2:19</span></div>
+      </div>
+    </div>
+    <div class="bottom-section">
+      <div class="panel-title">Inventory Phase</div>
+      <div class="inventory-viz"><canvas id="inventoryCanvas"></canvas></div>
+      <div class="fill-stats">
+        <div class="big-number" style="font-size:16px">4 UP · 2 DN</div>
+        <div class="data-row"><span class="label">VWAP sum &lt; $1</span><span class="value">62.5%</span></div>
+      </div>
+    </div>
+    <div class="bottom-section">
+      <div class="panel-title">Book Assets · 5 Online</div>
+      <div class="book-assets">
+        <div style="display:flex;gap:12px;margin:8px 0">
+          <div class="book-node active">XAU</div>
+          <div class="book-node active">XAG</div>
+          <div class="book-node warning">BTC</div>
+        </div>
+        <div style="display:flex;gap:12px">
+          <div class="book-node active">ETH</div>
+          <div class="book-node danger">SOL</div>
+        </div>
+        <div style="margin-top:8px;width:100%">
+          <div class="model-indicator"><div class="model-dot green"></div> SCOUT <span style="color:#555;margin-left:auto">online</span></div>
+          <div class="model-indicator"><div class="model-dot green"></div> QUOTER <span style="color:#555;margin-left:auto">online</span></div>
+          <div class="model-indicator"><div class="model-dot yellow"></div> PATCHER <span style="color:#555;margin-left:auto">128/148</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="bottom-section">
+      <div class="panel-title">Model Edge Waterfall</div>
+      <div class="waterfall-bars" id="waterfallBars"></div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:#555"><span>edge</span><span>fair</span><span>ofi</span><span>mom</span><span>vol</span><span>corr</span><span>macro</span><span>flow</span></div>
+      <div class="section-divider"></div>
+      <div class="net-pnl">+3.23¢ <span class="label">net</span></div>
+      <div class="data-row"><span class="label">edge this run</span><span class="value up">+$217.86</span></div>
+    </div>
+  </div>
+</div>
+<script>
+function updateClock(){const n=new Date(),h=String(n.getUTCHours()).padStart(2,'0'),m=String(n.getUTCMinutes()).padStart(2,'0'),s=String(n.getUTCSeconds()).padStart(2,'0');document.getElementById('clock').textContent=h+':'+m+':'+s+' UTC'}
+setInterval(updateClock,1000);updateClock();
+
+const canvas=document.getElementById('networkCanvas'),ctx=canvas.getContext('2d');
+let W,H,nodes=[],edges=[],time=0;
+function resizeCanvas(){const r=canvas.parentElement.getBoundingClientRect();W=canvas.width=r.width*2;H=canvas.height=r.height*2;canvas.style.width=r.width+'px';canvas.style.height=r.height+'px'}
+function initNodes(){
+  nodes=[];edges=[];
+  for(let i=0;i<120;i++){const a=Math.random()*Math.PI*2,r=Math.random()*180+20;nodes.push({x:W*.55+Math.cos(a)*r,y:H*.45+Math.sin(a)*r*.7,vx:(Math.random()-.5)*.5,vy:(Math.random()-.5)*.5,size:Math.random()*3+1,color:Math.random()>.3?'#ff2d55':'#ff6b9d',alpha:Math.random()*.6+.2,cluster:'gold'})}
+  for(let i=0;i<60;i++){const a=Math.random()*Math.PI*2,r=Math.random()*120+10;nodes.push({x:W*.25+Math.cos(a)*r,y:H*.5+Math.sin(a)*r*.6,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,size:Math.random()*2+.5,color:'#888899',alpha:Math.random()*.4+.1,cluster:'silver'})}
+  for(let i=0;i<50;i++){const a=Math.random()*Math.PI*2,r=Math.random()*100+10;nodes.push({x:W*.72+Math.cos(a)*r,y:H*.25+Math.sin(a)*r*.5,vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.4,size:Math.random()*2.5+.5,color:'#ff8c00',alpha:Math.random()*.5+.1,cluster:'btc'})}
+  for(let i=0;i<40;i++){const a=Math.random()*Math.PI*2,r=Math.random()*90+10;nodes.push({x:W*.45+Math.cos(a)*r,y:H*.72+Math.sin(a)*r*.5,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,size:Math.random()*2+.5,color:'#00e5ff',alpha:Math.random()*.4+.1,cluster:'eth'})}
+  for(let i=0;i<nodes.length;i++){const n=Math.floor(Math.random()*4)+1;for(let j=0;j<n;j++){let t=Math.floor(Math.random()*nodes.length);if(t!==i){const d=Math.hypot(nodes[i].x-nodes[t].x,nodes[i].y-nodes[t].y);if(d<200)edges.push({from:i,to:t,alpha:Math.random()*.15+.02})}}}
+}
+function drawNetwork(){
+  ctx.clearRect(0,0,W,H);
+  const g=ctx.createRadialGradient(W*.5,H*.45,0,W*.5,H*.45,W*.5);
+  g.addColorStop(0,'#1a0a15');g.addColorStop(.5,'#0d0d15');g.addColorStop(1,'#0a0a0f');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  time+=.005;
+  edges.forEach(e=>{const n1=nodes[e.from],n2=nodes[e.to];ctx.beginPath();ctx.moveTo(n1.x,n1.y);ctx.lineTo(n2.x,n2.y);ctx.strokeStyle=n1.cluster==='gold'?'rgba(255,45,85,'+e.alpha+')':n1.cluster==='btc'?'rgba(255,140,0,'+e.alpha+')':n1.cluster==='eth'?'rgba(0,229,255,'+e.alpha+')':'rgba(136,136,153,'+e.alpha+')';ctx.lineWidth=.5;ctx.stroke()});
+  nodes.forEach(n=>{n.x+=n.vx+Math.sin(time+n.y*.01)*.2;n.y+=n.vy+Math.cos(time+n.x*.01)*.2;if(n.x<0)n.x=0;if(n.x>W)n.x=W;if(n.y<0)n.y=0;if(n.y>H)n.y=H;const gs=n.size*3,gl=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,gs);gl.addColorStop(0,n.color);gl.addColorStop(1,'transparent');ctx.fillStyle=gl;ctx.globalAlpha=n.alpha;ctx.fillRect(n.x-gs,n.y-gs,gs*2,gs*2);ctx.beginPath();ctx.arc(n.x,n.y,n.size,0,Math.PI*2);ctx.fillStyle=n.color;ctx.fill();ctx.globalAlpha=1});
+  requestAnimationFrame(drawNetwork);
+}
+resizeCanvas();initNodes();drawNetwork();
+window.addEventListener('resize',()=>{resizeCanvas();initNodes()});
+
+// PnL Chart
+const pnlCanvas=document.getElementById('pnlChart'),pnlCtx=pnlCanvas.getContext('2d');
+function drawPnlChart(){
+  const r=pnlCanvas.parentElement.getBoundingClientRect();
+  pnlCanvas.width=r.width*2;pnlCanvas.height=r.height*2;
+  pnlCanvas.style.width=r.width+'px';pnlCanvas.style.height=r.height+'px';
+  const w=pnlCanvas.width,h=pnlCanvas.height,pts=100,data=[];let v=0;
+  for(let i=0;i<pts;i++){v+=(Math.random()-.45)*5;v=Math.max(-20,Math.min(50,v));data.push(v)}
+  const mn=Math.min(...data),mx=Math.max(...data),rng=mx-mn||1;
+  pnlCtx.beginPath();pnlCtx.moveTo(0,h);
+  data.forEach((v,i)=>{const x=(i/(pts-1))*w,y=h-((v-mn)/rng)*h*.9-h*.05;pnlCtx.lineTo(x,y)});
+  pnlCtx.lineTo(w,h);pnlCtx.closePath();
+  const gr=pnlCtx.createLinearGradient(0,0,0,h);gr.addColorStop(0,'rgba(0,255,136,0.3)');gr.addColorStop(1,'rgba(0,255,136,0.02)');
+  pnlCtx.fillStyle=gr;pnlCtx.fill();
+  pnlCtx.beginPath();
+  data.forEach((v,i)=>{const x=(i/(pts-1))*w,y=h-((v-mn)/rng)*h*.9-h*.05;i===0?pnlCtx.moveTo(x,y):pnlCtx.lineTo(x,y)});
+  pnlCtx.strokeStyle='#00ff88';pnlCtx.lineWidth=2;pnlCtx.stroke();
+}
+drawPnlChart();
+
+// Inventory
+const invCanvas=document.getElementById('inventoryCanvas'),invCtx=invCanvas.getContext('2d');
+function drawInventory(){
+  const r=invCanvas.parentElement.getBoundingClientRect();
+  invCanvas.width=r.width*2;invCanvas.height=r.height*2;
+  invCanvas.style.width=r.width+'px';invCanvas.style.height=r.height+'px';
+  const w=invCanvas.width,h=invCanvas.height,cx=w/2,cy=h/2;
+  invCtx.clearRect(0,0,w,h);
+  invCtx.strokeStyle='#1a1a2e';invCtx.lineWidth=1;
+  invCtx.beginPath();invCtx.moveTo(0,cy);invCtx.lineTo(w,cy);invCtx.moveTo(cx,0);invCtx.lineTo(cx,h);invCtx.stroke();
+  const pts=200;invCtx.beginPath();let px=cx,py=cy;
+  for(let i=0;i<pts;i++){const t=i*.05,x=cx+Math.sin(t*.7)*60+Math.sin(t*1.3)*30+(Math.random()-.5)*10,y=cy+Math.cos(t*.5)*40+Math.cos(t*1.1)*20+(Math.random()-.5)*8;i===0?invCtx.moveTo(x,y):invCtx.lineTo(x,y);px=x;py=y}
+  invCtx.strokeStyle='rgba(255,45,85,0.4)';invCtx.lineWidth=1.5;invCtx.stroke();
+  invCtx.beginPath();invCtx.arc(px,py,6,0,Math.PI*2);invCtx.fillStyle='#ff2d55';invCtx.fill();
+  invCtx.beginPath();invCtx.arc(cx,cy,3,0,Math.PI*2);invCtx.fillStyle='#ffd700';invCtx.fill();
+}
+drawInventory();
+
+// Correlation heatmap
+(function(){
+  const c=document.getElementById('corrHeatmap');
+  const corr=[[1,.82,.35,.28,-.72,-.58],[.82,1,.31,.25,-.65,-.52],[.35,.31,1,.78,-.22,-.15],[.28,.25,.78,1,-.18,-.12],[-.72,-.65,-.22,-.18,1,.68],[-.58,-.52,-.15,-.12,.68,1]];
+  for(let i=0;i<6;i++)for(let j=0;j<6;j++){const d=document.createElement('div');d.className='heatmap-cell';const v=corr[i][j];d.style.background=v>0?'rgba(0,255,136,'+(v*.8)+')':'rgba(255,45,85,'+(Math.abs(v)*.8)+')';c.appendChild(d)}
+})();
+
+// OFI sparkline
+(function(){
+  const c=document.getElementById('ofiSparkline');
+  for(let i=0;i<40;i++){const b=document.createElement('div');b.className='bar';b.style.height=(Math.random()*18+2)+'px';b.style.background=Math.random()>.4?'#00ff88':'#ff2d55';c.appendChild(b)}
+})();
+
+// Waterfall
+(function(){
+  const c=document.getElementById('waterfallBars');
+  const vals=[3.2,1.8,.9,2.1,-.5,1.4,-.3,.7],mx=Math.max(...vals.map(Math.abs));
+  vals.forEach(v=>{const b=document.createElement('div');b.className='waterfall-bar '+(v>=0?'positive':'negative');b.style.height=(Math.abs(v)/mx*100)+'%';c.appendChild(b)});
+})();
+
+// Live updates
+function updateLiveData(){
+  const bp=2648.30,ch=(Math.random()-.48)*2,np=(bp+ch).toFixed(2);
+  document.getElementById('xauSpot').textContent=Number(np).toLocaleString('en-US',{minimumFractionDigits:2});
+  document.getElementById('xauFair').textContent=(2647.85+(Math.random()-.5)*1.5).toFixed(2);
+  const mom=(3.42+(Math.random()-.5)*2).toFixed(2),el=document.getElementById('xauMom');
+  el.textContent=(mom>=0?'+':'')+mom+'/s';el.className='value '+(mom>=0?'up':'down');
+  const ofi=(.42+(Math.random()-.5)*.3).toFixed(2),of=document.getElementById('currentOFI');
+  of.textContent=(ofi>=0?'+':'')+ofi;of.className='value '+(ofi>=0?'up':'down');
+}
+setInterval(updateLiveData,2000);
+
+// Decision log
+const actions=['buy','sell','hold','switch'],details=['XAU 5M UP + $3.45 edge','matched inventory + $2.10','VWAP cross-up signal','OFI z-score +1.84','DXY weakening, gold up','real yield declining','2nd side fill within 12.5s'];
+function addDecisionEntry(){
+  const log=document.getElementById('decisionLog'),n=new Date(),t=String(n.getUTCHours()).padStart(2,'0')+':'+String(n.getUTCMinutes()).padStart(2,'0'),a=actions[Math.floor(Math.random()*actions.length)],d=details[Math.floor(Math.random()*details.length)];
+  const e=document.createElement('div');e.className='entry fade-in';e.innerHTML='<span class="time">'+t+'</span> <span class="action '+a+'">'+a+'</span> <span class="detail">'+d+'</span>';
+  log.insertBefore(e,log.firstChild);while(log.children.length>15)log.removeChild(log.lastChild);
+}
+setInterval(addDecisionEntry,5000);
+</script>
+</body>
+</html>
